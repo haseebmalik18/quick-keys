@@ -1,0 +1,33 @@
+/* Quickeys Content Styles */
+
+.quickeys-notification {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  background: #333;
+  color: white;
+  padding: 10px 15px;
+  border-radius: 5px;
+  font-size: 14px;
+  z-index: 10000;
+  animation: slideIn 0.3s ease-out;
+}
+
+.quickeys-notification.success {
+  background: #4CAF50;
+}
+
+.quickeys-notification.error {
+  background: #f44336;
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
