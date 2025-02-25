@@ -77,28 +77,87 @@ function checkForShortcut(tab) {
   }
 }
 
+const notifications = (() => {
+  const queue = [];
+  let isProcessing = false;
+  
+  const processQueue = () => {
+    if (queue.length === 0) {
+      isProcessing = false;
+      return;
+    }
+    
+    isProcessing = true;
+    const { message, callback } = queue.shift();
+    
+    if (state.settings.notifications && chrome.notifications) {
+      chrome.notifications.create({
+        type: 'basic',
+        iconUrl: 'icons/icon128.png',
+        title: 'KeyCommand',
+        message: message
+      }, () => {
+        if (callback) callback();
+        setTimeout(processQueue, 1000);
+      });
+    } else {
+      if (callback) callback();
+      setTimeout(processQueue, 50);
+    }
+  };
+  
+  return {
+    show: (message, callback) => {
+      queue.push({ message, callback });
+      if (!isProcessing) {
+        processQueue();
+      }
+    }
+  };
+})();
+
 function executeBasicAction(shortcut, tab) {
-  switch (shortcut.action) {
-    case 'newTab':
-      chrome.tabs.create({});
-      break;
-    case 'closeTab':
-      chrome.tabs.remove(tab.id);
-      break;
-    case 'nextTab':
-      chrome.tabs.query({ currentWindow: true }, (tabs) => {
-        const currentIndex = tabs.findIndex(t => t.id === tab.id);
-        const nextIndex = (currentIndex + 1) % tabs.length;
-        chrome.tabs.update(tabs[nextIndex].id, { active: true });
-      });
-      break;
-    case 'prevTab':
-      chrome.tabs.query({ currentWindow: true }, (tabs) => {
-        const currentIndex = tabs.findIndex(t => t.id === tab.id);
-        const prevIndex = currentIndex === 0 ? tabs.length - 1 : currentIndex - 1;
-        chrome.tabs.update(tabs[prevIndex].id, { active: true });
-      });
-      break;
+  try {
+    switch (shortcut.action) {
+      case 'newTab':
+        chrome.tabs.create({});
+        break;
+      case 'closeTab':
+        chrome.tabs.remove(tab.id);
+        break;
+      case 'nextTab':
+        chrome.tabs.query({ currentWindow: true }, (tabs) => {
+          const currentIndex = tabs.findIndex(t => t.id === tab.id);
+          const nextIndex = (currentIndex + 1) % tabs.length;
+          chrome.tabs.update(tabs[nextIndex].id, { active: true });
+        });
+        break;
+      case 'prevTab':
+        chrome.tabs.query({ currentWindow: true }, (tabs) => {
+          const currentIndex = tabs.findIndex(t => t.id === tab.id);
+          const prevIndex = currentIndex === 0 ? tabs.length - 1 : currentIndex - 1;
+          chrome.tabs.update(tabs[prevIndex].id, { active: true });
+        });
+        break;
+      case 'back':
+        chrome.tabs.goBack(tab.id);
+        break;
+      case 'forward':
+        chrome.tabs.goForward(tab.id);
+        break;
+      case 'reload':
+        chrome.tabs.reload(tab.id);
+        break;
+      case 'duplicateTab':
+        chrome.tabs.duplicate(tab.id);
+        break;
+      default:
+        console.log('Unknown action:', shortcut.action);
+        break;
+    }
+  } catch (error) {
+    console.error('Error executing action:', error);
+    notifications.show('Error: ' + error.message);
   }
 }
 
