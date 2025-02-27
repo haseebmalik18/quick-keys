@@ -183,9 +183,41 @@ function handleMessage(message, sender, sendResponse) {
   return true;
 }
 
+const commandActionMap = {
+  'back': 'back',
+  'forward': 'forward',
+  'new-tab': 'newTab',
+  'close-tab': 'closeTab',
+  'next-tab': 'nextTab',
+  'prev-tab': 'prevTab'
+};
+
+function handleChromeCommand(command) {
+  if (!state.enabled) return;
+  
+  chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+    if (!tabs || tabs.length === 0) return;
+    
+    const tab = tabs[0];
+    const actionName = commandActionMap[command];
+    
+    if (actionName) {
+      const tempShortcut = {
+        action: actionName,
+        isChromeNative: true
+      };
+      executeBasicAction(tempShortcut, tab);
+    }
+  });
+}
+
 function init() {
   loadFromStorage();
   chrome.runtime.onMessage.addListener(handleMessage);
+  
+  if (chrome.commands && chrome.commands.onCommand) {
+    chrome.commands.onCommand.addListener(handleChromeCommand);
+  }
   
   chrome.runtime.onConnect.addListener(function(port) {
     if (port.name === 'keyCommandPort') {

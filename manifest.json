@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Quickeys - Custom Keyboard Shortcuts",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Create and configure custom keyboard shortcuts for your browser",
 
-  "permissions": ["storage"],
+  "permissions": ["storage", "tabs"],
 
   "background": {
     "service_worker": "background.js"
@@ -17,7 +17,29 @@
   "content_scripts": [
     {
       "matches": ["<all_urls>"],
-      "js": ["content.js"]
+      "js": ["content.js"],
+      "css": ["content.css"]
     }
-  ]
+  ],
+
+  "commands": {
+    "back": {
+      "description": "Go back in browser history"
+    },
+    "forward": {
+      "description": "Go forward in browser history"
+    },
+    "new-tab": {
+      "description": "Open a new tab"
+    },
+    "close-tab": {
+      "description": "Close current tab"
+    },
+    "next-tab": {
+      "description": "Switch to next tab"
+    },
+    "prev-tab": {
+      "description": "Switch to previous tab"
+    }
+  }
 }
