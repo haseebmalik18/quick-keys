@@ -5,11 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Quickeys</title>
     <link rel="stylesheet" href="popup.css" />
+    <link
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+      rel="stylesheet"
+    />
   </head>
   <body>
     <div class="popup-container">
       <header>
         <div class="logo">
+          <i class="fas fa-keyboard"></i>
           <h1>Quickeys</h1>
         </div>
         <div class="toggle-container">
@@ -25,6 +30,7 @@
         <h2>Active Shortcuts</h2>
         <div id="shortcuts-list">
           <div class="empty-state">
+            <i class="fas fa-keyboard"></i>
             <p>No shortcuts configured yet</p>
           </div>
         </div>
@@ -32,12 +38,27 @@
 
       <div class="actions">
         <button id="add-shortcut-btn" class="btn primary">
-          Add Shortcut
+          <i class="fas fa-plus"></i> Add Shortcut
         </button>
         <button id="open-settings-btn" class="btn secondary">
-          Settings
+          <i class="fas fa-cog"></i> Settings
         </button>
       </div>
+
+      <div class="toggle-container mode-toggle">
+        <span>Dark Mode</span>
+        <label class="toggle">
+          <input type="checkbox" id="dark-mode-toggle" />
+          <span class="slider round"></span>
+        </label>
+      </div>
+
+      <footer>
+        <div class="current-site">
+          <i class="fas fa-globe"></i>
+          <span id="current-site-name">No site shortcuts active</span>
+        </div>
+      </footer>
     </div>
     <script src="popup.js"></script>
   </body>
