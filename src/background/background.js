@@ -116,7 +116,64 @@ const notifications = (() => {
   };
 })();
 
+function getRequiredPermissionsForAction(action) {
+  for (const category of Object.values(actionCategories)) {
+    if (category.actions && category.actions[action]) {
+      return category.actions[action].permissions || [];
+    }
+  }
+  return [];
+}
+
+function checkPermissionsForAction(action) {
+  const requiredPermissions = getRequiredPermissionsForAction(action);
+  
+  if (!requiredPermissions || requiredPermissions.length === 0) {
+    return Promise.resolve(true);
+  }
+  
+  const filteredPermissions = requiredPermissions.filter(
+    perm => perm !== "host" && perm !== "storage"
+  );
+  
+  if (filteredPermissions.length === 0) {
+    return Promise.resolve(true);
+  }
+  
+  return new Promise((resolve) => {
+    chrome.permissions.contains(
+      { permissions: filteredPermissions },
+      (result) => {
+        resolve(result);
+      }
+    );
+  });
+}
+
 function executeBasicAction(shortcut, tab) {
+  const action = shortcut.action;
+  
+  checkPermissionsForAction(action).then((hasPermissions) => {
+    if (!hasPermissions) {
+      const requiredPermissions = getRequiredPermissionsForAction(action);
+      const filteredPermissions = requiredPermissions.filter(
+        perm => perm !== "host" && perm !== "storage"
+      );
+      const permissionNames = filteredPermissions.map(p => p).join(", ");
+      
+      if (permissionNames.length > 0) {
+        notifications.show(
+          `Cannot execute "${action}": Missing permissions (${permissionNames})`
+        );
+        return;
+      }
+    }
+    
+    executeActionImplementation(shortcut, tab);
+  });
+}
+
+function executeActionImplementation(shortcut, tab) {
   try {
     switch (shortcut.action) {
       case 'newTab':
@@ -151,6 +208,30 @@ function executeBasicAction(shortcut, tab) {
       case 'duplicateTab':
         chrome.tabs.duplicate(tab.id);
         break;
+      case 'newWindow':
+        chrome.windows.create({});
+        break;
+      case 'closeWindow':
+        chrome.windows.remove(tab.windowId);
+        break;
+      case 'fullscreen':
+        chrome.windows.get(tab.windowId, (window) => {
+          const newState = window.state === 'fullscreen' ? 'normal' : 'fullscreen';
+          chrome.windows.update(tab.windowId, { state: newState });
+        });
+        break;
+      case 'openBookmarks':
+        chrome.tabs.create({ url: 'chrome://bookmarks/' });
+        break;
+      case 'openHistory':
+        chrome.tabs.create({ url: 'chrome://history/' });
+        break;
+      case 'openDownloads':
+        chrome.tabs.create({ url: 'chrome://downloads/' });
+        break;
+      case 'openSettings':
+        chrome.tabs.create({ url: 'chrome://settings/' });
+        break;
       default:
         console.log('Unknown action:', shortcut.action);
         break;
@@ -182,6 +263,143 @@ function handleMessage(message, sender, sendResponse) {
   
   return true;
 }
+
+const actionCategories = {
+  navigation: {
+    name: "Navigation",
+    actions: {
+      back: {
+        name: "Go Back",
+        description: "Navigate to the previous page in history",
+        params: {},
+        permissions: ["tabs"],
+      },
+      forward: {
+        name: "Go Forward",
+        description: "Navigate to the next page in history",
+        params: {},
+        permissions: ["tabs"],
+      },
+      reload: {
+        name: "Reload Page",
+        description: "Refresh the current page",
+        params: {},
+        permissions: [],
+      },
+      scrollTop: {
+        name: "Scroll to Top",
+        description: "Scroll to the top of the page",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      scrollBottom: {
+        name: "Scroll to Bottom",
+        description: "Scroll to the bottom of the page",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      openWebsite: {
+        name: "Open Website",
+        description: "Open a specific website",
+        params: {
+          url: {
+            type: "text",
+            label: "URL",
+            placeholder: "https://example.com",
+          },
+        },
+        permissions: ["tabs"],
+      },
+    },
+  },
+  tabs: {
+    name: "Tabs",
+    actions: {
+      newTab: {
+        name: "New Tab",
+        description: "Open a new tab",
+        params: {},
+        permissions: [],
+      },
+      closeTab: {
+        name: "Close Current Tab",
+        description: "Close the current tab",
+        params: {},
+        permissions: ["tabs"],
+      },
+      nextTab: {
+        name: "Next Tab",
+        description: "Switch to the next tab",
+        params: {},
+        permissions: ["tabs"],
+      },
+      prevTab: {
+        name: "Previous Tab",
+        description: "Switch to the previous tab",
+        params: {},
+        permissions: ["tabs"],
+      },
+      duplicateTab: {
+        name: "Duplicate Tab",
+        description: "Create a duplicate of the current tab",
+        params: {},
+        permissions: ["tabs"],
+      },
+    },
+  },
+  windows: {
+    name: "Windows",
+    actions: {
+      newWindow: {
+        name: "New Window",
+        description: "Open a new browser window",
+        params: {},
+        permissions: ["tabs"],
+      },
+      closeWindow: {
+        name: "Close Window",
+        description: "Close the current window",
+        params: {},
+        permissions: ["tabs"],
+      },
+      fullscreen: {
+        name: "Toggle Fullscreen",
+        description: "Enter or exit fullscreen mode",
+        params: {},
+        permissions: ["tabs"],
+      },
+    },
+  },
+  chrome: {
+    name: "Chrome Pages",
+    actions: {
+      openBookmarks: {
+        name: "Open Bookmarks",
+        description: "Open Chrome's bookmarks page",
+        params: {},
+        permissions: [],
+      },
+      openHistory: {
+        name: "Open History",
+        description: "Open Chrome's history page",
+        params: {},
+        permissions: [],
+      },
+      openDownloads: {
+        name: "Open Downloads",
+        description: "Open Chrome's downloads page",
+        params: {},
+        permissions: [],
+      },
+      openSettings: {
+        name: "Open Settings",
+        description: "Open Chrome's settings page",
+        params: {},
+        permissions: [],
+      },
+    },
+  },
+};
 
 const commandActionMap = {
   'back': 'back',
