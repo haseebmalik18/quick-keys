@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quickeys Settings</title>
+    <link rel="stylesheet" href="options.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">
+                <i class="fas fa-keyboard"></i>
+                <h1>Quickeys</h1>
+            </div>
+            <div class="header-actions">
+                <button id="export-btn" class="btn secondary">
+                    <i class="fas fa-download"></i> Export
+                </button>
+                <button id="import-btn" class="btn secondary">
+                    <i class="fas fa-upload"></i> Import
+                </button>
+            </div>
+        </header>
+
+        <nav class="sidebar">
+            <ul>
+                <li><a href="#shortcuts" class="nav-link active" data-section="shortcuts">
+                    <i class="fas fa-keyboard"></i> Shortcuts
+                </a></li>
+                <li><a href="#settings" class="nav-link" data-section="settings">
+                    <i class="fas fa-cog"></i> Settings
+                </a></li>
+                <li><a href="#permissions" class="nav-link" data-section="permissions">
+                    <i class="fas fa-shield-alt"></i> Permissions
+                </a></li>
+                <li><a href="#about" class="nav-link" data-section="about">
+                    <i class="fas fa-info-circle"></i> About
+                </a></li>
+            </ul>
+        </nav>
+
+        <main class="content">
+            <section id="shortcuts-section" class="section active">
+                <div class="section-header">
+                    <h2>Keyboard Shortcuts</h2>
+                    <button id="add-shortcut" class="btn primary">
+                        <i class="fas fa-plus"></i> Add Shortcut
+                    </button>
+                </div>
+                
+                <div class="shortcuts-list" id="shortcuts-list">
+                    <div class="empty-state">
+                        <i class="fas fa-keyboard"></i>
+                        <h3>No shortcuts configured</h3>
+                        <p>Create your first shortcut to get started</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="settings-section" class="section">
+                <div class="section-header">
+                    <h2>Settings</h2>
+                </div>
+                
+                <div class="settings-group">
+                    <h3>General</h3>
+                    <div class="setting-item">
+                        <label>
+                            <input type="checkbox" id="startup-enabled">
+                            <span class="checkmark"></span>
+                            Enable on startup
+                        </label>
+                        <p class="setting-description">Automatically enable Quickeys when Chrome starts</p>
+                    </div>
+                    
+                    <div class="setting-item">
+                        <label>
+                            <input type="checkbox" id="notifications-enabled">
+                            <span class="checkmark"></span>
+                            Show notifications
+                        </label>
+                        <p class="setting-description">Display notifications when shortcuts are executed</p>
+                    </div>
+                </div>
+            </section>
+
+            <section id="permissions-section" class="section">
+                <div class="section-header">
+                    <h2>Permissions</h2>
+                </div>
+                
+                <div class="permissions-list" id="permissions-list">
+                    <div class="permission-item">
+                        <div class="permission-info">
+                            <h4>Tab Management</h4>
+                            <p>Required for tab-related shortcuts (close, switch, etc.)</p>
+                        </div>
+                        <button class="btn secondary" data-permission="tabs">Grant</button>
+                    </div>
+                    
+                    <div class="permission-item">
+                        <div class="permission-info">
+                            <h4>Script Injection</h4>
+                            <p>Required for page interaction shortcuts</p>
+                        </div>
+                        <button class="btn secondary" data-permission="scripting">Grant</button>
+                    </div>
+                </div>
+            </section>
+
+            <section id="about-section" class="section">
+                <div class="section-header">
+                    <h2>About</h2>
+                </div>
+                
+                <div class="about-content">
+                    <div class="about-item">
+                        <h3>Quickeys</h3>
+                        <p>Version 1.0.0</p>
+                        <p>Custom keyboard shortcuts for Chrome</p>
+                    </div>
+                    
+                    <div class="about-item">
+                        <h4>Created by</h4>
+                        <p>HaseebUlhaq Malik</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <!-- Add Shortcut Modal -->
+    <div id="shortcut-modal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Add New Shortcut</h3>
+                <button class="modal-close">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <div class="form-group">
+                    <label>Shortcut Key</label>
+                    <input type="text" id="shortcut-key" placeholder="Press keys..." readonly>
+                </div>
+                
+                <div class="form-group">
+                    <label>Action Category</label>
+                    <select id="action-category">
+                        <option value="">Select category...</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Action</label>
+                    <select id="action-select">
+                        <option value="">Select action...</option>
+                    </select>
+                </div>
+                
+                <div id="action-params" class="form-group" style="display: none;">
+                    <label>Parameters</label>
+                    <div id="params-container"></div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button id="save-shortcut" class="btn primary">Save</button>
+                <button id="cancel-shortcut" class="btn secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="options.js"></script>
+</body>
+</html>
