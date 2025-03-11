@@ -370,6 +370,153 @@ const actionCategories = {
       },
     },
   },
+  site: {
+    name: "Website",
+    actions: {
+      clickElement: {
+        name: "Click Element",
+        description: "Click on an element by CSS selector",
+        params: {
+          selector: {
+            type: "text",
+            label: "CSS Selector",
+            placeholder: "button.submit",
+          },
+        },
+        permissions: ["scripting", "host"],
+      },
+      fillForm: {
+        name: "Fill Form Field",
+        description: "Fill a form field with text",
+        params: {
+          selector: {
+            type: "text",
+            label: "Field Selector",
+            placeholder: "input[name='search']",
+          },
+          text: { type: "text", label: "Text", placeholder: "Your text here" },
+        },
+        permissions: ["scripting", "host"],
+      },
+      scrollTop: {
+        name: "Scroll to Top",
+        description: "Scroll to the top of the page",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      scrollBottom: {
+        name: "Scroll to Bottom",
+        description: "Scroll to the bottom of the page",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+    },
+  },
+  clipboard: {
+    name: "Clipboard",
+    actions: {
+      copyUrl: {
+        name: "Copy Current URL",
+        description: "Copy the current page URL to clipboard",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      copyTitle: {
+        name: "Copy Page Title",
+        description: "Copy the current page title to clipboard",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      copySelection: {
+        name: "Copy Selected Text",
+        description: "Copy currently selected text to clipboard",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+    },
+  },
+  media: {
+    name: "Media",
+    actions: {
+      playPause: {
+        name: "Play/Pause Media",
+        description: "Toggle play/pause state of media on page",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      muteUnmute: {
+        name: "Mute/Unmute Media",
+        description: "Toggle mute state of media on page",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      volumeUp: {
+        name: "Volume Up",
+        description: "Increase volume of media on page",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      volumeDown: {
+        name: "Volume Down",
+        description: "Decrease volume of media on page",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      skipForward: {
+        name: "Skip Forward",
+        description: "Skip forward in media playback",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      skipBackward: {
+        name: "Skip Backward",
+        description: "Skip backward in media playback",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+    },
+  },
+  accessibility: {
+    name: "Accessibility",
+    actions: {
+      increaseFontSize: {
+        name: "Increase Font Size",
+        description: "Make text larger on the page",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      decreaseFontSize: {
+        name: "Decrease Font Size",
+        description: "Make text smaller on the page",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      toggleDarkMode: {
+        name: "Toggle Dark Mode",
+        description: "Switch between light and dark page styles",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      toggleReaderMode: {
+        name: "Toggle Reader Mode",
+        description: "Enable or disable reader view",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      speakSelection: {
+        name: "Speak Selected Text",
+        description: "Use text-to-speech on selected text",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      stopSpeaking: {
+        name: "Stop Speaking",
+        description: "Stop text-to-speech",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+    },
+  },
   chrome: {
     name: "Chrome Pages",
     actions: {
@@ -396,6 +543,23 @@ const actionCategories = {
         description: "Open Chrome's settings page",
         params: {},
         permissions: [],
+      },
+    },
+  },
+  advanced: {
+    name: "Advanced",
+    actions: {
+      custom: {
+        name: "Custom JavaScript",
+        description: "Run custom JavaScript code",
+        params: {
+          code: {
+            type: "textarea",
+            label: "JavaScript Code",
+            placeholder: "// Your code here",
+          },
+        },
+        permissions: ["scripting", "host"],
       },
     },
   },
