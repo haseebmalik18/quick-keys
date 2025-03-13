@@ -173,15 +173,94 @@ function executeBasicAction(shortcut, tab) {
   });
 }
 
+function executeScriptInTab(tab, func, args = []) {
+  if (!tab || !tab.id) return Promise.reject(new Error('Invalid tab'));
+  
+  if (chrome.scripting) {
+    return chrome.scripting.executeScript({
+      target: { tabId: tab.id },
+      func: func,
+      args: args
+    }).catch((err) => {
+      if (err.message.includes('permission')) {
+        notifications.show('Permission error: Required permissions not granted');
+      } else {
+        notifications.show('Error: ' + err.message);
+      }
+      return Promise.reject(err);
+    });
+  } else {
+    return new Promise((resolve, reject) => {
+      try {
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'executeFunction',
+          functionString: func.toString(),
+          args: args
+        }, (response) => {
+          if (chrome.runtime.lastError) {
+            reject(chrome.runtime.lastError);
+            return;
+          }
+          resolve(response);
+        });
+      } catch (error) {
+        reject(error);
+      }
+    });
+  }
+}
+
 function executeActionImplementation(shortcut, tab) {
   try {
+    console.log('executeActionImplementation called with:', {
+      action: shortcut.action,
+      tab: tab?.id
+    });
+
     switch (shortcut.action) {
+      case 'back':
+        chrome.tabs.goBack(tab.id);
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'showNotification',
+          actionType: 'back'
+        });
+        break;
+
+      case 'forward':
+        chrome.tabs.goForward(tab.id);
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'showNotification',
+          actionType: 'forward'
+        });
+        break;
+
+      case 'reload':
+        chrome.tabs.reload(tab.id);
+        break;
+
+      case 'scrollTop':
+        executeScriptInTab(tab, () => {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+        break;
+
+      case 'scrollBottom':
+        executeScriptInTab(tab, () => {
+          window.scrollTo({
+            top: document.body.scrollHeight,
+            behavior: 'smooth'
+          });
+        });
+        break;
+
       case 'newTab':
         chrome.tabs.create({});
         break;
+
       case 'closeTab':
         chrome.tabs.remove(tab.id);
         break;
+
       case 'nextTab':
         chrome.tabs.query({ currentWindow: true }, (tabs) => {
           const currentIndex = tabs.findIndex(t => t.id === tab.id);
@@ -189,6 +268,7 @@ function executeActionImplementation(shortcut, tab) {
           chrome.tabs.update(tabs[nextIndex].id, { active: true });
         });
         break;
+
       case 'prevTab':
         chrome.tabs.query({ currentWindow: true }, (tabs) => {
           const currentIndex = tabs.findIndex(t => t.id === tab.id);
@@ -196,50 +276,440 @@ function executeActionImplementation(shortcut, tab) {
           chrome.tabs.update(tabs[prevIndex].id, { active: true });
         });
         break;
-      case 'back':
-        chrome.tabs.goBack(tab.id);
-        break;
-      case 'forward':
-        chrome.tabs.goForward(tab.id);
-        break;
-      case 'reload':
-        chrome.tabs.reload(tab.id);
-        break;
+
       case 'duplicateTab':
         chrome.tabs.duplicate(tab.id);
         break;
+
       case 'newWindow':
         chrome.windows.create({});
         break;
+
       case 'closeWindow':
         chrome.windows.remove(tab.windowId);
         break;
+
       case 'fullscreen':
         chrome.windows.get(tab.windowId, (window) => {
           const newState = window.state === 'fullscreen' ? 'normal' : 'fullscreen';
           chrome.windows.update(tab.windowId, { state: newState });
         });
         break;
+
+      case 'clickElement':
+        if (shortcut.params && shortcut.params.selector) {
+          executeScriptInTab(tab, (selector) => {
+            const element = document.querySelector(selector);
+            if (element) element.click();
+          }, [shortcut.params.selector]);
+        }
+        break;
+
+      case 'fillForm':
+        if (shortcut.params && shortcut.params.selector && shortcut.params.text) {
+          executeScriptInTab(tab, (selector, text) => {
+            const element = document.querySelector(selector);
+            if (element) {
+              element.value = text;
+              const event = new Event('input', { bubbles: true });
+              element.dispatchEvent(event);
+            }
+          }, [shortcut.params.selector, shortcut.params.text])
+          .then(() => {
+            chrome.tabs.sendMessage(tab.id, {
+              action: 'showNotification',
+              actionType: 'fillForm'
+            });
+          }).catch(() => {});
+        }
+        break;
+
+      case 'copyUrl':
+        chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+          if (tabs && tabs.length > 0) {
+            const tab = tabs[0];
+            
+            chrome.scripting.executeScript({
+              target: { tabId: tab.id },
+              function: () => {
+                return new Promise((resolve) => {
+                  if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(window.location.href)
+                      .then(() => resolve({ success: true, method: 'clipboard-api' }))
+                      .catch((error) => {
+                        try {
+                          const textArea = document.createElement('textarea');
+                          textArea.value = window.location.href;
+                          textArea.style.position = 'fixed';
+                          document.body.appendChild(textArea);
+                          textArea.focus();
+                          textArea.select();
+                          
+                          const successful = document.execCommand('copy');
+                          document.body.removeChild(textArea);
+                          
+                          if (successful) {
+                            resolve({ success: true, method: 'execCommand' });
+                          } else {
+                            resolve({ success: false, error: 'execCommand failed', method: 'execCommand' });
+                          }
+                        } catch (e) {
+                          resolve({ success: false, error: e.toString() });
+                        }
+                      });
+                  } else {
+                    try {
+                      const textArea = document.createElement('textarea');
+                      textArea.value = window.location.href;
+                      textArea.style.position = 'fixed';
+                      document.body.appendChild(textArea);
+                      textArea.focus();
+                      textArea.select();
+                      
+                      const successful = document.execCommand('copy');
+                      document.body.removeChild(textArea);
+                      
+                      if (successful) {
+                        resolve({ success: true, method: 'execCommand' });
+                      } else {
+                        resolve({ success: false, error: 'execCommand failed', method: 'execCommand' });
+                      }
+                    } catch (e) {
+                      resolve({ success: false, error: e.toString() });
+                    }
+                  }
+                });
+              }
+            }).then((results) => {
+              if (results && results[0] && results[0].result && results[0].result.success) {
+                chrome.tabs.sendMessage(tab.id, {
+                  action: 'showNotification',
+                  actionType: 'copyUrl'
+                });
+              } else if (results && results[0] && results[0].result) {
+                console.error('Copy failed:', results[0].result.error);
+                chrome.tabs.sendMessage(tab.id, {
+                  action: 'showNotification',
+                  actionType: 'error',
+                  details: { message: 'Failed to copy URL: ' + results[0].result.error }
+                });
+              }
+            }).catch((err) => {
+              console.error('Script execution error:', err);
+            });
+          }
+        });
+        break;
+
+      case 'copyTitle':
+        executeScriptInTab(tab, () => {
+          try {
+            navigator.clipboard.writeText(document.title);
+            return { success: true };
+          } catch (e) {
+            return { success: false, error: e.message };
+          }
+        }).then((result) => {
+          if (result && result[0] && result[0].result && result[0].result.success) {
+            chrome.tabs.sendMessage(tab.id, {
+              action: 'showNotification',
+              actionType: 'copyTitle'
+            });
+          }
+        }).catch(() => {});
+        break;
+
+      case 'copySelection':
+        executeScriptInTab(tab, () => {
+          try {
+            const selection = window.getSelection().toString();
+            if (selection) {
+              navigator.clipboard.writeText(selection);
+              return { success: true };
+            }
+            return { success: false, reason: 'No text selected' };
+          } catch (e) {
+            return { success: false, error: e.message };
+          }
+        }).then((result) => {
+          if (result && result[0] && result[0].result && result[0].result.success) {
+            chrome.tabs.sendMessage(tab.id, {
+              action: 'showNotification',
+              actionType: 'copySelection'
+            });
+          }
+        }).catch(() => {});
+        break;
+
+      case 'playPause':
+        executeScriptInTab(tab, () => {
+          const media = document.querySelector('video, audio');
+          if (media) {
+            const wasPlaying = !media.paused;
+            if (media.paused) media.play();
+            else media.pause();
+            return { playing: !wasPlaying };
+          }
+          return { playing: false, noMedia: true };
+        }).then((result) => {
+          if (result && result[0] && result[0].result) {
+            chrome.tabs.sendMessage(tab.id, {
+              action: 'showNotification',
+              actionType: 'playPause',
+              details: result[0].result
+            });
+          }
+        }).catch(() => {});
+        break;
+
+      case 'muteUnmute':
+        executeScriptInTab(tab, () => {
+          const media = document.querySelector('video, audio');
+          if (media) {
+            media.muted = !media.muted;
+            return { muted: media.muted };
+          }
+          return { muted: false, noMedia: true };
+        }).then((result) => {
+          if (result && result[0] && result[0].result) {
+            chrome.tabs.sendMessage(tab.id, {
+              action: 'showNotification',
+              actionType: 'muteUnmute',
+              details: result[0].result
+            });
+          }
+        }).catch(() => {});
+        break;
+
+      case 'volumeUp':
+        executeScriptInTab(tab, () => {
+          const media = document.querySelector('video, audio');
+          if (media && media.volume < 1) {
+            const oldVolume = media.volume;
+            media.volume = Math.min(1, media.volume + 0.1);
+            return { success: true, oldVolume, newVolume: media.volume };
+          }
+          return { success: false };
+        }).then((result) => {
+          if (result && result[0] && result[0].result && result[0].result.success) {
+            chrome.tabs.sendMessage(tab.id, {
+              action: 'showNotification',
+              actionType: 'volumeUp'
+            });
+          }
+        }).catch(() => {});
+        break;
+
+      case 'volumeDown':
+        executeScriptInTab(tab, () => {
+          const media = document.querySelector('video, audio');
+          if (media && media.volume > 0) {
+            const oldVolume = media.volume;
+            media.volume = Math.max(0, media.volume - 0.1);
+            return { success: true, oldVolume, newVolume: media.volume };
+          }
+          return { success: false };
+        }).then((result) => {
+          if (result && result[0] && result[0].result && result[0].result.success) {
+            chrome.tabs.sendMessage(tab.id, {
+              action: 'showNotification',
+              actionType: 'volumeDown'
+            });
+          }
+        }).catch(() => {});
+        break;
+
+      case 'increaseFontSize':
+        executeScriptInTab(tab, () => {
+          try {
+            const html = document.documentElement;
+            const currentSize = parseFloat(window.getComputedStyle(html).fontSize);
+            html.style.fontSize = (currentSize * 1.1) + 'px';
+            return { success: true, oldSize: currentSize, newSize: currentSize * 1.1 };
+          } catch (e) {
+            return { success: false, error: e.message };
+          }
+        }).then((result) => {
+          if (result && result[0] && result[0].result && result[0].result.success) {
+            chrome.tabs.sendMessage(tab.id, {
+              action: 'showNotification',
+              actionType: 'increaseFontSize'
+            });
+          }
+        }).catch(() => {});
+        break;
+
+      case 'decreaseFontSize':
+        executeScriptInTab(tab, () => {
+          try {
+            const html = document.documentElement;
+            const currentSize = parseFloat(window.getComputedStyle(html).fontSize);
+            html.style.fontSize = (currentSize * 0.9) + 'px';
+            return { success: true, oldSize: currentSize, newSize: currentSize * 0.9 };
+          } catch (e) {
+            return { success: false, error: e.message };
+          }
+        }).then((result) => {
+          if (result && result[0] && result[0].result && result[0].result.success) {
+            chrome.tabs.sendMessage(tab.id, {
+              action: 'showNotification',
+              actionType: 'decreaseFontSize'
+            });
+          }
+        }).catch(() => {});
+        break;
+
+      case 'toggleDarkMode':
+        executeScriptInTab(tab, () => {
+          try {
+            if (!document.querySelector('#keycommand-darkmode-style')) {
+              const style = document.createElement('style');
+              style.id = 'keycommand-darkmode-style';
+              style.textContent = `
+                html { filter: invert(100%) hue-rotate(180deg); }
+                img, video { filter: invert(100%) hue-rotate(180deg); }
+              `;
+              document.head.appendChild(style);
+              return { enabled: true };
+            } else {
+              const style = document.querySelector('#keycommand-darkmode-style');
+              if (style && style.parentNode) {
+                style.parentNode.removeChild(style);
+              }
+              return { enabled: false };
+            }
+          } catch (e) {
+            return { error: e.message };
+          }
+        }).then((result) => {
+          if (result && result[0] && result[0].result) {
+            chrome.tabs.sendMessage(tab.id, {
+              action: 'showNotification',
+              actionType: 'toggleDarkMode',
+              details: result[0].result
+            });
+          }
+        }).catch(() => {});
+        break;
+
       case 'openBookmarks':
         chrome.tabs.create({ url: 'chrome://bookmarks/' });
         break;
+
       case 'openHistory':
         chrome.tabs.create({ url: 'chrome://history/' });
         break;
+
       case 'openDownloads':
         chrome.tabs.create({ url: 'chrome://downloads/' });
         break;
+
       case 'openSettings':
         chrome.tabs.create({ url: 'chrome://settings/' });
         break;
+
+      case 'custom':
+        if (shortcut.params && shortcut.params.code) {
+          executeCustomCode(tab, shortcut.params.code)
+            .then(() => {})
+            .catch(() => {});
+        } else {
+          notifications.show('Error: No custom code defined for this shortcut');
+        }
+        break;
+
       default:
         console.log('Unknown action:', shortcut.action);
         break;
     }
   } catch (error) {
-    console.error('Error executing action:', error);
+    console.error('Error in executeActionImplementation:', error);
     notifications.show('Error: ' + error.message);
   }
+}
+
+function executeCustomCode(tab, code) {
+  if (!tab || !tab.id) {
+    notifications.show('Error: Invalid tab');
+    return Promise.reject(new Error('Invalid tab'));
+  }
+  
+  if (!code || typeof code !== 'string' || code.trim() === '') {
+    notifications.show('Error: No code provided');
+    return Promise.reject(new Error('Invalid code'));
+  }
+  
+  return chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    func: function(codeString) {
+      try {
+        let result;
+        
+        try {
+          result = eval(codeString);
+        } catch (evalError) {
+          try {
+            const func = new Function(codeString);
+            result = func();
+          } catch (funcError) {
+            const asyncFunc = new Function(`return (async function() { ${codeString} })();`);
+            result = asyncFunc();
+          }
+        }
+        
+        return {
+          success: true,
+          result: result,
+          timestamp: new Date().toISOString(),
+          url: window.location.href
+        };
+      } catch (error) {
+        return {
+          success: false,
+          error: error.message,
+          stack: error.stack,
+          timestamp: new Date().toISOString(),
+          url: window.location.href
+        };
+      }
+    },
+    args: [code.trim()],
+    world: 'MAIN'
+  }).then((results) => {
+    if (results && results.length > 0) {
+      const result = results[0].result;
+      
+      if (result && result.success) {
+        notifications.show('Custom code executed successfully');
+        
+        chrome.tabs.sendMessage(tab.id, {
+          action: 'showNotification',
+          actionType: 'custom',
+          details: { message: 'Custom code executed successfully' }
+        }).catch(() => {});
+        
+        return results;
+      } else if (result) {
+        notifications.show(`Custom code failed: ${result.error}`);
+        return Promise.reject(new Error(result.error));
+      }
+    }
+    
+    notifications.show('Custom code execution failed: No results returned');
+    return Promise.reject(new Error('No results returned'));
+  }).catch((err) => {
+    let errorMessage = 'Failed to execute custom code';
+    if (err.message.includes('Cannot access')) {
+      errorMessage = 'Cannot execute code on this page (restricted)';
+    } else if (err.message.includes('permission')) {
+      errorMessage = 'Missing permissions to execute code';
+    } else if (err.message) {
+      errorMessage = `Execution error: ${err.message}`;
+    }
+    
+    notifications.show(errorMessage);
+    return Promise.reject(err);
+  });
 }
 
 function handleMessage(message, sender, sendResponse) {
