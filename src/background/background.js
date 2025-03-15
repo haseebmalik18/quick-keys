@@ -5,7 +5,7 @@ const state = {
     startupEnabled: true,
     notifications: true,
     conflictMode: "site-first",
-    shortcutDelay: 0
+    shortcutDelay: 0,
   },
   keyState: {
     ctrl: false,
@@ -13,27 +13,479 @@ const state = {
     shift: false,
     meta: false,
     lastKey: null,
-    lastKeyTime: 0
-  }
+    lastKeyTime: 0,
+  },
+  patternCache: {},
+};
+
+const commandActionMap = {
+  back: "back",
+  forward: "forward",
+  "new-tab": "newTab",
+  "close-tab": "closeTab",
+  "next-tab": "nextTab",
+  "prev-tab": "prevTab",
+  "duplicate-tab": "duplicateTab",
+  "pin-tab": "pinTab",
+  "mute-tab": "muteTab",
+  "new-window": "newWindow",
+  "close-window": "closeWindow",
+  fullscreen: "fullscreen",
+  "open-bookmarks": "openBookmarks",
+  "open-history": "openHistory",
+  "open-downloads": "openDownloads",
+  "open-settings": "openSettings",
+  "clear-cache-reload": "clearCacheAndReload",
+  "open-incognito": "openInIncognito",
+  "open-website-1": "openWebsite1",
+  "open-website-2": "openWebsite2",
+  "open-website-3": "openWebsite3",
+  "open-website-4": "openWebsite4",
+};
+
+const actionCategories = {
+  navigation: {
+    name: "Navigation",
+    actions: {
+      back: {
+        name: "Go Back",
+        description: "Navigate to the previous page in history",
+        params: {},
+        permissions: ["tabs"],
+      },
+      forward: {
+        name: "Go Forward",
+        description: "Navigate to the next page in history",
+        params: {},
+        permissions: ["tabs"],
+      },
+      reload: {
+        name: "Reload Page",
+        description: "Refresh the current page",
+        params: {},
+        permissions: [],
+      },
+      clearCacheAndReload: {
+        name: "Clear Cache & Reload",
+        description: "Clear browser cache and reload the page",
+        params: {},
+        permissions: ["browsingData"],
+      },
+      scrollTop: {
+        name: "Scroll to Top",
+        description: "Scroll to the top of the page",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      scrollBottom: {
+        name: "Scroll to Bottom",
+        description: "Scroll to the bottom of the page",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      scrollDown: {
+        name: "Scroll Down",
+        description: "Scroll down one page",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      scrollUp: {
+        name: "Scroll Up",
+        description: "Scroll up one page",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      openWebsite: {
+        name: "Open Website",
+        description: "Open a specific website",
+        params: {
+          url: {
+            type: "text",
+            label: "URL",
+            placeholder: "https://example.com",
+          },
+        },
+        permissions: ["tabs"],
+      },
+      navigatePath: {
+        name: "Navigate to Path",
+        description: "Navigate to a specific path on current site",
+        params: {
+          path: { type: "text", label: "Path", placeholder: "/settings" },
+        },
+        permissions: ["scripting", "host"],
+      },
+    },
+  },
+  tabs: {
+    name: "Tabs",
+    actions: {
+      newTab: {
+        name: "New Tab",
+        description: "Open a new tab",
+        params: {},
+        permissions: [],
+      },
+      closeTab: {
+        name: "Close Current Tab",
+        description: "Close the current tab",
+        params: {},
+        permissions: ["tabs"],
+      },
+      closeTabsToRight: {
+        name: "Close All Tabs to the Right",
+        description: "Close all tabs to the right of current tab",
+        params: {},
+        permissions: ["tabs"],
+      },
+      nextTab: {
+        name: "Next Tab",
+        description: "Switch to the next tab",
+        params: {},
+        permissions: ["tabs"],
+      },
+      prevTab: {
+        name: "Previous Tab",
+        description: "Switch to the previous tab",
+        params: {},
+        permissions: ["tabs"],
+      },
+      firstTab: {
+        name: "First Tab",
+        description: "Switch to the first tab",
+        params: {},
+        permissions: ["tabs"],
+      },
+      lastTab: {
+        name: "Last Tab",
+        description: "Switch to the last tab",
+        params: {},
+        permissions: ["tabs"],
+      },
+      duplicateTab: {
+        name: "Duplicate Tab",
+        description: "Create a duplicate of the current tab",
+        params: {},
+        permissions: ["tabs"],
+      },
+      pinTab: {
+        name: "Pin/Unpin Tab",
+        description: "Toggle pin state of current tab",
+        params: {},
+        permissions: ["tabs"],
+      },
+      muteTab: {
+        name: "Mute/Unmute Tab",
+        description: "Toggle mute state of current tab",
+        params: {},
+        permissions: ["tabs"],
+      },
+      openInIncognito: {
+        name: "Open in Incognito",
+        description: "Open current page in incognito window",
+        params: {},
+        permissions: ["tabs"],
+      },
+    },
+  },
+  windows: {
+    name: "Windows",
+    actions: {
+      newWindow: {
+        name: "New Window",
+        description: "Open a new browser window",
+        params: {},
+        permissions: ["tabs"],
+      },
+      closeWindow: {
+        name: "Close Window",
+        description: "Close the current window",
+        params: {},
+        permissions: ["tabs"],
+      },
+      fullscreen: {
+        name: "Toggle Fullscreen",
+        description: "Enter or exit fullscreen mode",
+        params: {},
+        permissions: ["tabs"],
+      },
+      minimizeWindow: {
+        name: "Minimize Window",
+        description: "Minimize the current window",
+        params: {},
+        permissions: ["tabs"],
+      },
+      maximizeWindow: {
+        name: "Maximize Window",
+        description: "Maximize the current window",
+        params: {},
+        permissions: ["tabs"],
+      },
+    },
+  },
+  site: {
+    name: "Website",
+    actions: {
+      clickElement: {
+        name: "Click Element",
+        description: "Click on an element by CSS selector",
+        params: {
+          selector: {
+            type: "text",
+            label: "CSS Selector",
+            placeholder: "button.submit",
+          },
+        },
+        permissions: ["scripting", "host"],
+      },
+      fillForm: {
+        name: "Fill Form Field",
+        description: "Fill a form field with text",
+        params: {
+          selector: {
+            type: "text",
+            label: "Field Selector",
+            placeholder: "input[name='search']",
+          },
+          text: { type: "text", label: "Text", placeholder: "Your text here" },
+        },
+        permissions: ["scripting", "host"],
+      },
+      submitForm: {
+        name: "Submit Form",
+        description: "Submit a form",
+        params: {
+          selector: {
+            type: "text",
+            label: "Form Selector",
+            placeholder: "form#search",
+          },
+        },
+        permissions: ["scripting", "host"],
+      },
+      focusElement: {
+        name: "Focus Element",
+        description: "Set focus to an element",
+        params: {
+          selector: {
+            type: "text",
+            label: "Element Selector",
+            placeholder: "input#search",
+          },
+        },
+        permissions: ["scripting", "host"],
+      },
+      toggleElement: {
+        name: "Toggle Element Visibility",
+        description: "Show/hide an element",
+        params: {
+          selector: {
+            type: "text",
+            label: "Element Selector",
+            placeholder: "div.sidebar",
+          },
+        },
+        permissions: ["scripting", "host"],
+      },
+      toggleElementOutlines: {
+        name: "Toggle Element Outlines",
+        description: "Show or hide outlines around page elements",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+    },
+  },
+  clipboard: {
+    name: "Clipboard",
+    actions: {
+      copyUrl: {
+        name: "Copy Current URL",
+        description: "Copy the current page URL to clipboard",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      copyTitle: {
+        name: "Copy Page Title",
+        description: "Copy the current page title to clipboard",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      copySelection: {
+        name: "Copy Selected Text",
+        description: "Copy currently selected text to clipboard",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      copyAllLinks: {
+        name: "Copy All Links on Page",
+        description: "Copy all links from the current page to clipboard",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      pasteAndGo: {
+        name: "Paste and Navigate",
+        description: "Paste clipboard content and navigate to it as URL",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+    },
+  },
+  media: {
+    name: "Media",
+    actions: {
+      playPause: {
+        name: "Play/Pause Media",
+        description: "Toggle play/pause state of media on page",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      muteUnmute: {
+        name: "Mute/Unmute Media",
+        description: "Toggle mute state of media on page",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      volumeUp: {
+        name: "Volume Up",
+        description: "Increase volume of media on page",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      volumeDown: {
+        name: "Volume Down",
+        description: "Decrease volume of media on page",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      skipForward: {
+        name: "Skip Forward",
+        description: "Skip forward in media playback",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      skipBackward: {
+        name: "Skip Backward",
+        description: "Skip backward in media playback",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+    },
+  },
+  accessibility: {
+    name: "Accessibility",
+    actions: {
+      increaseFontSize: {
+        name: "Increase Font Size",
+        description: "Make text larger on the page",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      decreaseFontSize: {
+        name: "Decrease Font Size",
+        description: "Make text smaller on the page",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      toggleDarkMode: {
+        name: "Toggle Dark Mode",
+        description: "Switch between light and dark page styles",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      toggleReaderMode: {
+        name: "Toggle Reader Mode",
+        description: "Enable or disable reader view",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      speakSelection: {
+        name: "Speak Selected Text",
+        description: "Use text-to-speech on selected text",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+      stopSpeaking: {
+        name: "Stop Speaking",
+        description: "Stop text-to-speech",
+        params: {},
+        permissions: ["scripting", "host"],
+      },
+    },
+  },
+  chrome: {
+    name: "Chrome Pages",
+    actions: {
+      openBookmarks: {
+        name: "Open Bookmarks",
+        description: "Open Chrome's bookmarks page",
+        params: {},
+        permissions: [],
+      },
+      openHistory: {
+        name: "Open History",
+        description: "Open Chrome's history page",
+        params: {},
+        permissions: [],
+      },
+      openDownloads: {
+        name: "Open Downloads",
+        description: "Open Chrome's downloads page",
+        params: {},
+        permissions: [],
+      },
+      openExtensions: {
+        name: "Open Extensions",
+        description: "Open Chrome's extensions page",
+        params: {},
+        permissions: [],
+      },
+      openSettings: {
+        name: "Open Settings",
+        description: "Open Chrome's settings page",
+        params: {},
+        permissions: [],
+      },
+    },
+  },
+  advanced: {
+    name: "Advanced",
+    actions: {
+      custom: {
+        name: "Custom JavaScript",
+        description: "Run custom JavaScript code",
+        params: {
+          code: {
+            type: "textarea",
+            label: "JavaScript Code",
+            placeholder: "// Your code here",
+          },
+        },
+        permissions: ["scripting", "host"],
+      },
+    },
+  },
 };
 
 function loadFromStorage() {
-  chrome.storage.sync.get(['shortcuts', 'settings', 'enabled'], function(data) {
-    if (data.shortcuts) {
-      state.shortcuts = data.shortcuts;
+  chrome.storage.sync.get(
+    ["shortcuts", "settings", "enabled"],
+    function (data) {
+      if (data.shortcuts) {
+        state.shortcuts = data.shortcuts;
+      }
+
+      if (data.settings) {
+        state.settings = { ...state.settings, ...data.settings };
+      }
+
+      if (data.enabled !== undefined) {
+        state.enabled = data.enabled;
+      } else {
+        state.enabled = state.settings.startupEnabled;
+        chrome.storage.sync.set({ enabled: state.enabled });
+      }
     }
-    
-    if (data.settings) {
-      state.settings = { ...state.settings, ...data.settings };
-    }
-    
-    if (data.enabled !== undefined) {
-      state.enabled = data.enabled;
-    } else {
-      state.enabled = state.settings.startupEnabled;
-      chrome.storage.sync.set({ enabled: state.enabled });
-    }
-  });
+  );
 }
 
 function processKeyEvent(event, tab) {
@@ -698,15 +1150,59 @@ function executeCustomCode(tab, code) {
     notifications.show('Custom code execution failed: No results returned');
     return Promise.reject(new Error('No results returned'));
   }).catch((err) => {
-    let errorMessage = 'Failed to execute custom code';
-    if (err.message.includes('Cannot access')) {
-      errorMessage = 'Cannot execute code on this page (restricted)';
-    } else if (err.message.includes('permission')) {
-      errorMessage = 'Missing permissions to execute code';
+    if (
+      err.message.includes("Cannot access") ||
+      err.message.includes("scripting")
+    ) {
+      return chrome.scripting
+        .executeScript({
+          target: { tabId: tab.id },
+          func: function (codeString) {
+            try {
+              const result = eval(codeString);
+              return {
+                success: true,
+                result: result,
+                method: "isolated-world",
+                timestamp: new Date().toISOString(),
+              };
+            } catch (error) {
+              return {
+                success: false,
+                error: error.message,
+                method: "isolated-world",
+                timestamp: new Date().toISOString(),
+              };
+            }
+          },
+          args: [code.trim()],
+          world: "ISOLATED",
+        })
+        .then((isolatedResults) => {
+          if (
+            isolatedResults &&
+            isolatedResults[0] &&
+            isolatedResults[0].result.success
+          ) {
+            notifications.show("Custom code executed (limited access)");
+            return isolatedResults;
+          } else {
+            throw new Error(
+              isolatedResults[0]?.result?.error || "Execution failed"
+            );
+          }
+        });
+    }
+
+    let errorMessage = "Failed to execute custom code";
+    if (err.message.includes("Cannot access")) {
+      errorMessage = "Cannot execute code on this page (restricted)";
+    } else if (err.message.includes("permission")) {
+      errorMessage = "Missing permissions to execute code";
     } else if (err.message) {
       errorMessage = `Execution error: ${err.message}`;
     }
-    
+
     notifications.show(errorMessage);
     return Promise.reject(err);
   });
@@ -1043,6 +1539,7 @@ const commandActionMap = {
   'next-tab': 'nextTab',
   'prev-tab': 'prevTab'
 };
+
 
 function handleChromeCommand(command) {
   if (!state.enabled) return;
