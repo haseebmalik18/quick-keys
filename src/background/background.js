@@ -733,6 +733,22 @@ function executeActionImplementation(shortcut, tab) {
         chrome.tabs.duplicate(tab.id);
         break;
 
+      case 'firstTab':
+        chrome.tabs.query({ currentWindow: true }, (tabs) => {
+          if (tabs && tabs.length > 0) {
+            chrome.tabs.update(tabs[0].id, { active: true });
+          }
+        });
+        break;
+
+      case 'lastTab':
+        chrome.tabs.query({ currentWindow: true }, (tabs) => {
+          if (tabs && tabs.length > 0) {
+            chrome.tabs.update(tabs[tabs.length - 1].id, { active: true });
+          }
+        });
+        break;
+
       case 'newWindow':
         chrome.windows.create({});
         break;
@@ -1302,6 +1318,18 @@ const actionCategories = {
       prevTab: {
         name: "Previous Tab",
         description: "Switch to the previous tab",
+        params: {},
+        permissions: ["tabs"],
+      },
+      firstTab: {
+        name: "First Tab",
+        description: "Switch to the first tab",
+        params: {},
+        permissions: ["tabs"],
+      },
+      lastTab: {
+        name: "Last Tab",
+        description: "Switch to the last tab",
         params: {},
         permissions: ["tabs"],
       },
