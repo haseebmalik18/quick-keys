@@ -24,6 +24,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
   elements.shortcutsList.addEventListener("click", handleShortcutAction);
 
+  // Add quick action button listeners
+  document.querySelectorAll('.quick-action-btn').forEach(btn => {
+    btn.addEventListener('click', handleQuickAction);
+  });
+
   const commandActionMap = {
     back: "back",
     forward: "forward",
@@ -189,5 +194,27 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function openSettings() {
     chrome.runtime.openOptionsPage();
+  }
+
+  function handleQuickAction(event) {
+    const action = event.currentTarget.dataset.action;
+    
+    chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+      if (tabs && tabs.length > 0) {
+        const tempShortcut = { action: action };
+        chrome.runtime.sendMessage({
+          action: "executeShortcut",
+          key: `quick-${action}`,
+          tab: tabs[0]
+        });
+
+        // Send directly to background for immediate execution
+        chrome.runtime.sendMessage({
+          action: "executeAction",
+          shortcut: tempShortcut,
+          tab: tabs[0]
+        });
+      }
+    });
   }
 });
