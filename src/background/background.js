@@ -524,9 +524,90 @@ function checkForShortcut(tab) {
   const shortcutKey = shortcutParts.join('+');
   const shortcut = state.shortcuts[shortcutKey];
   
-  if (shortcut) {
-    executeBasicAction(shortcut, tab);
+  if (!shortcut) return;
+
+  if (shortcut.type === 'site' && shortcut.sitePattern) {
+    if (!tab || !tab.url) return;
+
+    let regex = state.patternCache[shortcut.sitePattern];
+    if (!regex) {
+      const pattern = shortcut.sitePattern.replace(/\*/g, '.*');
+      regex = new RegExp('^' + pattern + '$');
+      state.patternCache[shortcut.sitePattern] = regex;
+    }
+
+    if (!regex.test(tab.url)) {
+      if (state.settings.conflictMode === 'global-first') {
+        const globalShortcut = Object.entries(state.shortcuts).find(
+          ([key, config]) => key === shortcutKey && config.type === 'global'
+        );
+
+        if (globalShortcut) {
+          triggerShortcut(shortcutKey, tab);
+        }
+      }
+      return;
+    }
   }
+
+  triggerShortcut(shortcutKey, tab);
+}
+
+function triggerShortcut(shortcutKey, tab) {
+  if (state.settings.shortcutDelay > 0) {
+    setTimeout(() => {
+      executeShortcut(shortcutKey, tab);
+    }, state.settings.shortcutDelay);
+  } else {
+    executeShortcut(shortcutKey, tab);
+  }
+}
+
+function executeShortcut(key, tab) {
+  if (!state.enabled) return;
+
+  const shortcut = state.shortcuts[key];
+  if (!shortcut) return;
+
+  if (shortcut.isChromeNative) {
+    return;
+  }
+
+  executeAction(shortcut, tab);
+}
+
+function executeAction(shortcut, tab) {
+  const action = shortcut.action;
+
+  checkPermissionsForAction(action).then((hasPermissions) => {
+    if (!hasPermissions) {
+      const requiredPermissions = getRequiredPermissionsForAction(action);
+      const filteredPermissions = requiredPermissions.filter(
+        perm => perm !== "host" && perm !== "storage"
+      );
+      const permissionNames = filteredPermissions.map(p => p).join(", ");
+
+      if (permissionNames.length > 0) {
+        notifications.show(
+          `Cannot execute "${action}": Missing permissions (${permissionNames}). Redirecting to permissions page...`
+        );
+
+        chrome.storage.local.set({
+          permissionRedirect: {
+            action: action,
+            missingPermissions: permissionNames,
+            time: Date.now()
+          }
+        }, function() {
+          chrome.runtime.openOptionsPage();
+        });
+
+        return;
+      }
+    }
+
+    executeActionImplementation(shortcut, tab);
+  });
 }
 
 const notifications = (() => {
@@ -1229,10 +1310,24 @@ function handleMessage(message, sender, sendResponse) {
     case 'toggleExtension':
       state.enabled = message.enabled;
       chrome.storage.sync.set({ enabled: state.enabled });
+      notifications.show('KeyCommand ' + (state.enabled ? 'enabled' : 'disabled'));
       break;
       
     case 'shortcutsChanged':
       state.shortcuts = message.shortcuts;
+      state.patternCache = {};
+      break;
+      
+    case 'settingsChanged':
+      state.settings = message.settings;
+      break;
+
+    case 'executeShortcut':
+      executeShortcut(message.key, message.tab);
+      break;
+
+    case 'executeAction':
+      executeAction(message.shortcut, message.tab);
       break;
       
     case 'getState':
