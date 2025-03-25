@@ -15,9 +15,16 @@ function handleKeyEvent(event) {
   
   const isInputField = event.target.tagName === 'INPUT' || 
                       event.target.tagName === 'TEXTAREA' || 
-                      event.target.contentEditable === 'true';
+                      event.target.contentEditable === 'true' ||
+                      event.target.isContentEditable;
   
   if (isInputField) return;
+  
+  // Prevent default for common shortcuts to avoid conflicts
+  const shortcutKeys = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12'];
+  if (shortcutKeys.includes(event.key) && (event.ctrlKey || event.altKey || event.shiftKey)) {
+    event.preventDefault();
+  }
   
   const keyData = {
     key: event.key.toLowerCase(),
@@ -25,14 +32,23 @@ function handleKeyEvent(event) {
     ctrlKey: event.ctrlKey,
     altKey: event.altKey,
     shiftKey: event.shiftKey,
-    metaKey: event.metaKey
+    metaKey: event.metaKey,
+    timestamp: Date.now()
   };
   
   port.postMessage({
     type: 'keyEvent',
     event: keyData,
-    tab: { url: window.location.href }
+    tab: { 
+      url: window.location.href,
+      title: document.title,
+      id: getCurrentTabId()
+    }
   });
+}
+
+function getCurrentTabId() {
+  return chrome.runtime?.id || Math.random().toString(36).substr(2, 9);
 }
 
 function showNotification(message, type = 'success', duration = 2000) {
@@ -129,6 +145,72 @@ function handleMessage(message) {
 }
 
 chrome.runtime.onMessage.addListener(handleMessage);
+
+function addVisualFeedback(element, type = 'success') {
+  if (!element) return;
+  
+  const originalTransition = element.style.transition;
+  const originalBoxShadow = element.style.boxShadow;
+  
+  const colors = {
+    success: '0 0 10px rgba(76, 175, 80, 0.6)',
+    error: '0 0 10px rgba(244, 67, 54, 0.6)',
+    info: '0 0 10px rgba(33, 150, 243, 0.6)'
+  };
+  
+  element.style.transition = 'box-shadow 0.3s ease';
+  element.style.boxShadow = colors[type] || colors.success;
+  
+  setTimeout(() => {
+    element.style.transition = originalTransition;
+    element.style.boxShadow = originalBoxShadow;
+  }, 1000);
+}
+
+function highlightClickableElements() {
+  const clickableElements = document.querySelectorAll('button, a, [onclick], [role="button"], input[type="button"], input[type="submit"]');
+  
+  clickableElements.forEach((element, index) => {
+    if (index < 10) { // Only highlight first 10 elements
+      element.style.outline = `2px solid rgba(33, 150, 243, 0.5)`;
+      element.style.outlineOffset = '2px';
+      
+      const label = document.createElement('span');
+      label.textContent = (index + 1).toString();
+      label.style.cssText = `
+        position: absolute;
+        top: -10px;
+        left: -10px;
+        background: #2196F3;
+        color: white;
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+        font-weight: bold;
+        z-index: 10000;
+        pointer-events: none;
+      `;
+      
+      element.style.position = 'relative';
+      element.appendChild(label);
+    }
+  });
+  
+  setTimeout(() => {
+    clickableElements.forEach(element => {
+      element.style.outline = '';
+      element.style.outlineOffset = '';
+      const label = element.querySelector('span');
+      if (label && label.textContent.match(/^\d+$/)) {
+        label.remove();
+      }
+    });
+  }, 3000);
+}
 
 function init() {
   connectToBackground();
