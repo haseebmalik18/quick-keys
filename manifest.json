@@ -1,12 +1,12 @@
 {
   "manifest_version": 3,
   "name": "Quickeys - Custom Keyboard Shortcuts",
-  "version": "1.0.0",
+  "version": "0.1.5",
   "description": "Create and configure custom keyboard shortcuts for your browser",
 
-  "permissions": ["storage", "declarativeNetRequest", "notifications"],
+  "permissions": ["storage", "declarativeNetRequest"],
 
-  "optional_permissions": ["tabs", "scripting", "browsingData", "bookmarks", "history", "downloads"],
+  "optional_permissions": ["tabs", "scripting", "browsingData"],
 
   "host_permissions": ["<all_urls>"],
   "optional_host_permissions": [],
@@ -49,12 +49,6 @@
     "128": "icons/icon128.png"
   },
 
-  "web_accessible_resources": [
-    {
-      "resources": ["icons/*.png", "content.css"],
-      "matches": ["<all_urls>"]
-    }
-  ],
 
   "commands": {
     "back": {

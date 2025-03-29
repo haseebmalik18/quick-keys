@@ -1,228 +1,352 @@
-let port;
-let notificationQueue = [];
-let isShowingNotification = false;
+import "../content/content.css";
 
-function connectToBackground() {
-  port = chrome.runtime.connect({ name: 'keyCommandPort' });
-  
-  port.onDisconnect.addListener(() => {
-    setTimeout(connectToBackground, 1000);
-  });
+let port = null;
+let notificationElement = null;
+let fontAwesomeInjected = false;
+let lastUrl = window.location.href;
+const pageInfo = {
+  url: window.location.href,
+  domain: window.location.hostname,
+};
+
+function initialize() {
+  connectPort();
+  injectStyles();
+  setupEventListeners();
+  sendPageInfo();
+  observeUrlChanges();
+  notifyContentScriptLoaded();
 }
 
-function handleKeyEvent(event) {
-  if (!port) return;
-  
-  const isInputField = event.target.tagName === 'INPUT' || 
-                      event.target.tagName === 'TEXTAREA' || 
-                      event.target.contentEditable === 'true' ||
-                      event.target.isContentEditable;
-  
-  if (isInputField) return;
-  
-  // Prevent default for common shortcuts to avoid conflicts
-  const shortcutKeys = ['F1', 'F2', 'F3', 'F4', 'F5', 'F6', 'F7', 'F8', 'F9', 'F10', 'F11', 'F12'];
-  if (shortcutKeys.includes(event.key) && (event.ctrlKey || event.altKey || event.shiftKey)) {
-    event.preventDefault();
-  }
-  
-  const keyData = {
-    key: event.key.toLowerCase(),
-    type: event.type,
-    ctrlKey: event.ctrlKey,
-    altKey: event.altKey,
-    shiftKey: event.shiftKey,
-    metaKey: event.metaKey,
-    timestamp: Date.now()
-  };
-  
-  port.postMessage({
-    type: 'keyEvent',
-    event: keyData,
-    tab: { 
-      url: window.location.href,
-      title: document.title,
-      id: getCurrentTabId()
+function connectPort() {
+  if (port) return;
+
+  try {
+    if (chrome.runtime && chrome.runtime.id) {
+      port = chrome.runtime.connect({ name: "keyCommandPort" });
+      port.onDisconnect.addListener(() => {
+        port = null;
+      });
     }
-  });
-}
-
-function getCurrentTabId() {
-  return chrome.runtime?.id || Math.random().toString(36).substr(2, 9);
-}
-
-function showNotification(message, type = 'success', duration = 2000) {
-  notificationQueue.push({ message, type, duration });
-  
-  if (!isShowingNotification) {
-    processNotificationQueue();
+  } catch (error) {
+    port = null;
   }
 }
 
-function processNotificationQueue() {
-  if (notificationQueue.length === 0) {
-    isShowingNotification = false;
+function injectStyles() {
+  try {
+    if (document.querySelector('link[href*="content.css"]')) return;
+
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href = chrome.runtime.getURL("content.css");
+    document.head.appendChild(link);
+  } catch (error) {}
+}
+
+function ensureFontAwesome() {
+  if (fontAwesomeInjected) return;
+  if (document.querySelector('link[href*="font-awesome"]')) {
+    fontAwesomeInjected = true;
     return;
   }
-  
-  isShowingNotification = true;
-  const { message, type, duration } = notificationQueue.shift();
-  
-  const notification = document.createElement('div');
-  notification.className = `quickeys-notification ${type}`;
-  notification.textContent = message;
-  
-  document.body.appendChild(notification);
-  
-  setTimeout(() => {
-    notification.classList.add('fade-out');
-    setTimeout(() => {
-      if (notification.parentNode) {
-        notification.parentNode.removeChild(notification);
+
+  try {
+    const link = document.createElement("link");
+    link.rel = "stylesheet";
+    link.href =
+      "https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css";
+    document.head.appendChild(link);
+    fontAwesomeInjected = true;
+  } catch (error) {}
+}
+
+const notifications = {
+  copyTitle: {
+    message: "Page title copied to clipboard",
+    icon: "fas fa-heading",
+  },
+  copyUrl: {
+    message: "URL copied to clipboard",
+    icon: "fas fa-link",
+  },
+  copyAllLinks: {
+    message: (details) => `${details.count} links copied to clipboard`,
+    icon: "fas fa-copy",
+  },
+  clearCacheAndReload: {
+    message: "Cache cleared and page reloaded",
+    icon: "fas fa-sync-alt",
+  },
+  copySelection: {
+    message: "Selected text copied",
+    icon: "fas fa-copy",
+  },
+  fillForm: {
+    message: "Form field filled",
+    icon: "fas fa-keyboard",
+  },
+  playPause: {
+    message: (details) => (details.playing ? "Media playing" : "Media paused"),
+    icon: (details) => (details.playing ? "fas fa-play" : "fas fa-pause"),
+  },
+  muteUnmute: {
+    message: (details) => (details.muted ? "Audio muted" : "Audio unmuted"),
+    icon: (details) =>
+      details.muted ? "fas fa-volume-mute" : "fas fa-volume-up",
+  },
+  volumeUp: {
+    message: "Volume increased",
+    icon: "fas fa-volume-up",
+  },
+  volumeDown: {
+    message: "Volume decreased",
+    icon: "fas fa-volume-down",
+  },
+  increaseFontSize: {
+    message: "Font size increased",
+    icon: "fas fa-text-height",
+  },
+  closeCookieNotices: {
+    message: (details) =>
+      details.noticesClosed
+        ? `Cookie notices handled (${details.noticesClosed}): ${
+            details.action === "rejected"
+              ? "Rejected"
+              : details.action === "hidden"
+              ? "Removed from page"
+              : "No action"
+          }`
+        : "No cookie notices found",
+    icon: "fas fa-cookie-bite",
+  },
+  pasteAndGo: {
+    message: (details) =>
+      details.wasUrl
+        ? `Navigating to URL: ${truncateText(details.text, 25)}`
+        : `Searching for: ${truncateText(details.text, 25)}`,
+    icon: (details) => (details.wasUrl ? "fas fa-link" : "fas fa-search"),
+  },
+  error: {
+    message: (details) => details.message || "Operation failed",
+    icon: "fas fa-exclamation-circle",
+  },
+  decreaseFontSize: {
+    message: "Font size decreased",
+    icon: "fas fa-text-height",
+  },
+  toggleDarkMode: {
+    message: "Dark mode toggled",
+    icon: "fas fa-moon",
+  },
+  toggleReaderMode: {
+    message: "Reader mode toggled",
+    icon: "fas fa-book-reader",
+  },
+  focusAddressBar: {
+    message: "Address bar focused",
+    icon: "fas fa-search",
+  },
+  back: {
+    message: "Navigated back",
+    icon: "fas fa-arrow-left",
+  },
+  forward: {
+    message: "Navigated forward",
+    icon: "fas fa-arrow-right",
+  },
+};
+
+function truncateText(text, maxLength) {
+  if (!text) return "";
+  return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
+}
+
+function showActionNotification(action, details = {}) {
+  try {
+    if (!notifications[action]) return;
+
+    ensureFontAwesome();
+
+    const notificationConfig = notifications[action];
+    const message =
+      typeof notificationConfig.message === "function"
+        ? notificationConfig.message(details)
+        : notificationConfig.message;
+
+    const icon =
+      typeof notificationConfig.icon === "function"
+        ? notificationConfig.icon(details)
+        : notificationConfig.icon;
+
+    if (!notificationElement) {
+      notificationElement = document.createElement("div");
+      notificationElement.className = "keycommand-notification";
+      document.body.appendChild(notificationElement);
+    }
+
+    notificationElement.innerHTML = `<i class="${icon}"></i>${message}`;
+
+    notificationElement.classList.remove("show");
+
+    void notificationElement.offsetWidth;
+    notificationElement.classList.add("show");
+
+    clearTimeout(notificationElement.timeout);
+    notificationElement.timeout = setTimeout(() => {
+      notificationElement.classList.remove("show");
+    }, 2000);
+  } catch (error) {}
+}
+
+function sendPageInfo() {
+  try {
+    if (chrome.runtime?.id) {
+      chrome.runtime.sendMessage({
+        action: "pageInfo",
+        page: pageInfo,
+      });
+    }
+  } catch (error) {}
+}
+
+function sendKeyEvent(event) {
+  try {
+    if (
+      event.type === "keydown" &&
+      ["Control", "Alt", "Shift", "Meta"].includes(event.key) &&
+      !event.ctrlKey &&
+      !event.altKey &&
+      !event.shiftKey &&
+      !event.metaKey
+    ) {
+      return;
+    }
+
+    if (!chrome.runtime?.id) return;
+
+    const simplifiedEvent = {
+      type: event.type,
+      key: event.key,
+      keyCode: event.keyCode,
+      ctrlKey: event.ctrlKey,
+      altKey: event.altKey,
+      shiftKey: event.shiftKey,
+      metaKey: event.metaKey,
+      repeat: event.repeat,
+    };
+
+    chrome.runtime.sendMessage({ action: "getCurrentTab" }, function (tab) {
+      if (chrome.runtime.lastError) return;
+
+      if (!port) connectPort();
+
+      if (port) {
+        try {
+          port.postMessage({
+            type: "keyEvent",
+            event: simplifiedEvent,
+            tab: tab || { url: window.location.href },
+          });
+        } catch (error) {
+          port = null;
+        }
       }
-      processNotificationQueue();
-    }, 300);
-  }, duration);
+    });
+  } catch (error) {}
 }
 
-function getActionDisplayName(actionType, details = {}) {
-  const actionNames = {
-    back: 'Go Back',
-    forward: 'Go Forward',
-    reload: 'Page Reloaded',
-    newTab: 'New Tab Opened',
-    closeTab: 'Tab Closed',
-    nextTab: 'Switched to Next Tab',
-    prevTab: 'Switched to Previous Tab',
-    duplicateTab: 'Tab Duplicated',
-    pinTab: 'Tab Pinned/Unpinned',
-    muteTab: 'Tab Muted/Unmuted',
-    newWindow: 'New Window Opened',
-    closeWindow: 'Window Closed',
-    fullscreen: 'Fullscreen Toggled',
-    copyUrl: 'URL Copied to Clipboard',
-    copyTitle: 'Page Title Copied',
-    copySelection: 'Selection Copied',
-    fillForm: 'Form Field Filled',
-    playPause: 'Media Play/Pause',
-    muteUnmute: 'Media Muted/Unmuted',
-    volumeUp: 'Volume Increased',
-    volumeDown: 'Volume Decreased',
-    increaseFontSize: 'Font Size Increased',
-    decreaseFontSize: 'Font Size Decreased',
-    toggleDarkMode: 'Dark Mode Toggled',
-    toggleReaderMode: 'Reader Mode Toggled',
-    pasteAndGo: details.wasUrl ? `Navigated to ${details.text}` : `Searched for "${details.text}"`,
-    closeTabsToRight: `Closed ${details.count} tabs`,
-    openInIncognito: 'Opened in Incognito',
-    clearCacheAndReload: 'Cache Cleared & Reloaded',
-    toggleElementOutlines: details.added ? 'Element outlines shown' : 'Element outlines hidden',
-    copyAllLinks: `Copied ${details.count} links`,
-    custom: details.message || 'Custom code executed'
-  };
-  
-  return actionNames[actionType] || 'Action executed';
-}
+function setupEventListeners() {
+  document.addEventListener("keydown", sendKeyEvent, true);
+  document.addEventListener("keyup", sendKeyEvent, true);
 
-function handleMessage(message) {
-  if (message.action === 'showNotification') {
-    const displayName = getActionDisplayName(message.actionType, message.details);
-    
-    if (message.actionType === 'error') {
-      showNotification(message.details.message, 'error');
-    } else {
-      showNotification(displayName, 'success');
+  document.addEventListener("visibilitychange", function () {
+    if (document.visibilityState === "visible") {
+      connectPort();
+      sendPageInfo();
     }
-  } else if (message.action === 'executeFunction') {
+  });
+
+  window.addEventListener("pageshow", function (event) {
+    if (event.persisted) {
+      connectPort();
+      sendPageInfo();
+    }
+  });
+
+  chrome.runtime.onMessage.addListener(function (
+    message,
+    sender,
+    sendResponse
+  ) {
     try {
-      const func = new Function('return ' + message.functionString)();
-      const result = func.apply(null, message.args || []);
-      chrome.runtime.sendMessage({ result: result });
+      if (message.action === "executeCustomCode" && message.code) {
+        const result = new Function(message.code)();
+        sendResponse({ success: true, result });
+      } else if (
+        message.action === "executeFunction" &&
+        message.functionString
+      ) {
+        const func = new Function(`return ${message.functionString}`)();
+        const result = func(...(message.args || []));
+        sendResponse({ success: true, result });
+      } else if (message.action === "showNotification" && message.actionType) {
+        showActionNotification(message.actionType, message.details || {});
+        sendResponse({ success: true });
+      }
+      return true;
     } catch (error) {
-      chrome.runtime.sendMessage({ error: error.message });
+      sendResponse({ success: false, error: error.message });
+      return true;
     }
+  });
+}
+
+function observeUrlChanges() {
+  try {
+    const originalPushState = history.pushState;
+    const originalReplaceState = history.replaceState;
+
+    history.pushState = function () {
+      originalPushState.apply(this, arguments);
+      updateUrl();
+    };
+
+    history.replaceState = function () {
+      originalReplaceState.apply(this, arguments);
+      updateUrl();
+    };
+
+    window.addEventListener("popstate", updateUrl);
+
+    function updateUrl() {
+      if (window.location.href !== lastUrl) {
+        lastUrl = window.location.href;
+        pageInfo.url = lastUrl;
+        sendPageInfo();
+      }
+    }
+  } catch (error) {
+    try {
+      const urlObserver = new MutationObserver(() => {
+        if (window.location.href !== lastUrl) {
+          lastUrl = window.location.href;
+          pageInfo.url = lastUrl;
+          sendPageInfo();
+        }
+      });
+
+      urlObserver.observe(document, { subtree: true, childList: true });
+    } catch (error) {}
   }
 }
 
-chrome.runtime.onMessage.addListener(handleMessage);
-
-function addVisualFeedback(element, type = 'success') {
-  if (!element) return;
-  
-  const originalTransition = element.style.transition;
-  const originalBoxShadow = element.style.boxShadow;
-  
-  const colors = {
-    success: '0 0 10px rgba(76, 175, 80, 0.6)',
-    error: '0 0 10px rgba(244, 67, 54, 0.6)',
-    info: '0 0 10px rgba(33, 150, 243, 0.6)'
-  };
-  
-  element.style.transition = 'box-shadow 0.3s ease';
-  element.style.boxShadow = colors[type] || colors.success;
-  
-  setTimeout(() => {
-    element.style.transition = originalTransition;
-    element.style.boxShadow = originalBoxShadow;
-  }, 1000);
-}
-
-function highlightClickableElements() {
-  const clickableElements = document.querySelectorAll('button, a, [onclick], [role="button"], input[type="button"], input[type="submit"]');
-  
-  clickableElements.forEach((element, index) => {
-    if (index < 10) { // Only highlight first 10 elements
-      element.style.outline = `2px solid rgba(33, 150, 243, 0.5)`;
-      element.style.outlineOffset = '2px';
-      
-      const label = document.createElement('span');
-      label.textContent = (index + 1).toString();
-      label.style.cssText = `
-        position: absolute;
-        top: -10px;
-        left: -10px;
-        background: #2196F3;
-        color: white;
-        width: 20px;
-        height: 20px;
-        border-radius: 50%;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 12px;
-        font-weight: bold;
-        z-index: 10000;
-        pointer-events: none;
-      `;
-      
-      element.style.position = 'relative';
-      element.appendChild(label);
+function notifyContentScriptLoaded() {
+  try {
+    if (chrome.runtime?.id) {
+      chrome.runtime.sendMessage({ action: "contentScriptLoaded" });
     }
-  });
-  
-  setTimeout(() => {
-    clickableElements.forEach(element => {
-      element.style.outline = '';
-      element.style.outlineOffset = '';
-      const label = element.querySelector('span');
-      if (label && label.textContent.match(/^\d+$/)) {
-        label.remove();
-      }
-    });
-  }, 3000);
+  } catch (error) {}
 }
 
-function init() {
-  connectToBackground();
-  
-  document.addEventListener('keydown', handleKeyEvent, true);
-  document.addEventListener('keyup', handleKeyEvent, true);
-  
-  chrome.runtime.onMessage.addListener(handleMessage);
-}
-
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
-} else {
-  init();
-}
+initialize();
