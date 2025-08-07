@@ -466,6 +466,9 @@ const actionCategories = {
   },
 };
 
+/**
+ * Loads user settings and shortcuts from Chrome storage
+ */
 function loadFromStorage() {
   chrome.storage.sync.get(
     ["shortcuts", "settings", "enabled"],
@@ -488,6 +491,9 @@ function loadFromStorage() {
   );
 }
 
+/**
+ * Notification system with queuing for user feedback
+ */
 const notifications = (() => {
   const queue = [];
   let isProcessing = false;
@@ -529,12 +535,22 @@ const notifications = (() => {
   };
 })();
 
+/**
+ * Toggles extension enabled/disabled state
+ */
 function toggleExtension() {
   state.enabled = !state.enabled;
   chrome.storage.sync.set({ enabled: state.enabled });
   notifications.show("KeyCommand " + (state.enabled ? "enabled" : "disabled"));
 }
 
+/**
+ * Executes JavaScript function in the specified tab
+ * @param {Object} tab - Chrome tab object
+ * @param {Function} func - Function to execute
+ * @param {Array} args - Function arguments
+ * @returns {Promise} Execution result
+ */
 function executeScriptInTab(tab, func, args = []) {
   if (!tab || !tab.id) return Promise.reject(new Error("Invalid tab"));
 
@@ -580,6 +596,12 @@ function executeScriptInTab(tab, func, args = []) {
   }
 }
 
+/**
+ * Executes custom JavaScript code with security sandboxing
+ * @param {Object} tab - Target tab
+ * @param {string} code - JavaScript code to execute
+ * @returns {Promise} Execution result
+ */
 function executeCustomCode(tab, code) {
   if (!tab || !tab.id) {
     notifications.show("Error: Invalid tab");
@@ -715,6 +737,11 @@ function executeCustomCode(tab, code) {
     });
 }
 
+/**
+ * Processes keyboard events and updates modifier key state
+ * @param {Object} event - Keyboard event
+ * @param {Object} tab - Active tab
+ */
 function processKeyEvent(event, tab) {
   if (!state.enabled) return;
 
@@ -738,6 +765,10 @@ function processKeyEvent(event, tab) {
   }
 }
 
+/**
+ * Checks current key combination against registered shortcuts
+ * @param {Object} tab - Active tab
+ */
 function checkForShortcut(tab) {
   if (!state.keyState.lastKey) return;
 
@@ -780,6 +811,11 @@ function checkForShortcut(tab) {
   triggerShortcut(shortcutKey, tab);
 }
 
+/**
+ * Triggers shortcut execution with optional delay
+ * @param {string} shortcutKey - Keyboard shortcut key combination
+ * @param {Object} tab - Target tab
+ */
 function triggerShortcut(shortcutKey, tab) {
   if (state.settings.shortcutDelay > 0) {
     setTimeout(() => {
@@ -790,6 +826,12 @@ function triggerShortcut(shortcutKey, tab) {
   }
 }
 
+/**
+ * Handles runtime messages from popup and content scripts
+ * @param {Object} message - Message object
+ * @param {Object} sender - Message sender
+ * @param {Function} sendResponse - Response callback
+ */
 function handleMessage(message, sender, sendResponse) {
   switch (message.action) {
     case "toggleExtension":
@@ -830,6 +872,11 @@ chrome.storage.onChanged.addListener(function (changes) {
   }
 });
 
+/**
+ * Gets required permissions for a specific action
+ * @param {string} action - Action name
+ * @returns {Array} Required permissions
+ */
 function getRequiredPermissionsForAction(action) {
   for (const category of Object.values(actionCategories)) {
     if (category.actions && category.actions[action]) {
@@ -862,6 +909,11 @@ function getRequiredPermissionsForAction(action) {
   return chromeActions[action] || [];
 }
 
+/**
+ * Checks if required permissions are granted for an action
+ * @param {string} action - Action name
+ * @returns {Promise<boolean>} Permission status
+ */
 function checkPermissionsForAction(action) {
   const requiredPermissions = getRequiredPermissionsForAction(action);
 
@@ -887,6 +939,10 @@ function checkPermissionsForAction(action) {
   });
 }
 
+/**
+ * Handles Chrome native command shortcuts
+ * @param {string} command - Chrome command name
+ */
 function handleChromeCommand(command) {
   if (!state.enabled) return;
 
@@ -936,6 +992,11 @@ function handleChromeCommand(command) {
   });
 }
 
+/**
+ * Executes a registered keyboard shortcut
+ * @param {string} key - Shortcut key combination
+ * @param {Object} tab - Target tab
+ */
 function executeShortcut(key, tab) {
   if (!state.enabled) return;
 
@@ -949,6 +1010,11 @@ function executeShortcut(key, tab) {
   executeAction(shortcut, tab);
 }
 
+/**
+ * Executes shortcut action with permission validation
+ * @param {Object} shortcut - Shortcut configuration
+ * @param {Object} tab - Target tab
+ */
 function executeAction(shortcut, tab) {
   const action = shortcut.action;
 
@@ -985,6 +1051,11 @@ function executeAction(shortcut, tab) {
     executeActionImplementation(shortcut, tab);
   });
 }
+/**
+ * Core action execution logic for browser automation
+ * @param {Object} shortcut - Shortcut configuration
+ * @param {Object} tab - Target tab
+ */
 function executeActionImplementation(shortcut, tab) {
   try {
     console.log("executeActionImplementation called with:", {
@@ -1997,6 +2068,9 @@ function executeActionImplementation(shortcut, tab) {
   }
 }
 
+/**
+ * Initializes the extension background service worker
+ */
 function init() {
   loadFromStorage();
   chrome.runtime.onMessage.addListener(handleMessage);

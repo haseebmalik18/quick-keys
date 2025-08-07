@@ -51,6 +51,9 @@ document.addEventListener("DOMContentLoaded", function () {
 
   const ignoredCommands = ["_execute_action", "toggle-extension"];
 
+  /**
+   * Sets up dark mode toggle functionality
+   */
   function setupDarkMode() {
     if (!elements.darkModeToggle) return;
 
@@ -75,6 +78,9 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+  /**
+   * Loads extension settings from Chrome storage
+   */
   function loadSettings() {
     chrome.storage.sync.get("settings", function (data) {
       if (data.settings) {
@@ -87,6 +93,9 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+  /**
+   * Loads and displays user shortcuts in the popup
+   */
   function loadShortcuts() {
     chrome.storage.sync.get("shortcuts", function (data) {
       const shortcuts = data.shortcuts || {};
@@ -105,6 +114,10 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+  /**
+   * Handles shortcut action button clicks
+   * @param {Event} event - Click event
+   */
   function handleShortcutAction(event) {
     if (event.target.tagName !== "I") return;
 
@@ -122,6 +135,12 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
+  /**
+   * Creates DOM element for shortcut display
+   * @param {string} key - Keyboard shortcut combination
+   * @param {Object} config - Shortcut configuration
+   * @returns {HTMLElement} Shortcut display element
+   */
   function createShortcutElement(key, config) {
     const shortcutItem = document.createElement("div");
     shortcutItem.className = "shortcut-item";
@@ -178,6 +197,11 @@ document.addEventListener("DOMContentLoaded", function () {
     return shortcutItem;
   }
 
+  /**
+   * Formats keyboard combination for display
+   * @param {string} key - Raw key combination
+   * @returns {string} Formatted key display
+   */
   function formatKeyCombo(key) {
     if (key.startsWith("meta") && key.length > 4 && !key.includes("+")) {
       const letter = key.substring(4);
@@ -222,6 +246,9 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
+  /**
+   * Toggles extension enabled state
+   */
   function toggleExtension() {
     const enabled = elements.extensionToggle.checked;
 
@@ -302,6 +329,9 @@ document.addEventListener("DOMContentLoaded", function () {
     chrome.runtime.openOptionsPage();
   }
 
+  /**
+   * Gets current tab information for site-specific shortcuts
+   */
   function getCurrentTabInfo() {
     chrome.tabs.query({ active: true, currentWindow: true }, function (tabs) {
       if (!tabs || !tabs[0]) return;
@@ -328,6 +358,10 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+  /**
+   * Syncs Chrome native shortcuts with extension shortcuts
+   * @returns {Promise} Sync completion promise
+   */
   async function syncChromeNativeShortcuts() {
     try {
       const data = await new Promise((resolve) =>

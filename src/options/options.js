@@ -26,6 +26,9 @@ document.addEventListener('DOMContentLoaded', function() {
     populateActionCategories();
     checkPermissions();
 
+    /**
+     * Sets up event listeners for options page interactions
+     */
     function setupEventListeners() {
         // Navigation
         elements.navLinks.forEach(link => {
@@ -61,6 +64,10 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    /**
+     * Switches between different sections in the options page
+     * @param {string} sectionName - Section to display
+     */
     function switchSection(sectionName) {
         // Update navigation
         elements.navLinks.forEach(link => link.classList.remove('active'));
@@ -71,6 +78,9 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById(`${sectionName}-section`).classList.add('active');
     }
 
+    /**
+     * Opens the shortcut creation modal
+     */
     function openShortcutModal() {
         elements.shortcutModal.style.display = 'block';
         resetModal();
@@ -182,6 +192,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    /**
+     * Saves a new keyboard shortcut to Chrome storage
+     */
     function saveShortcut() {
         const shortcutKey = elements.shortcutKeyInput.value;
         const action = elements.actionSelect.value;
@@ -209,6 +222,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    /**
+     * Loads and displays existing shortcuts
+     */
     function loadShortcuts() {
         chrome.storage.sync.get(['shortcuts'], (data) => {
             const shortcuts = data.shortcuts || {};
@@ -216,6 +232,10 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    /**
+     * Displays shortcuts in the options page table
+     * @param {Object} shortcuts - Shortcuts configuration object
+     */
     function displayShortcuts(shortcuts) {
         const shortcutEntries = Object.entries(shortcuts);
         
@@ -292,6 +312,9 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    /**
+     * Checks and displays current extension permissions status
+     */
     function checkPermissions() {
         const permissions = ['tabs', 'scripting'];
         

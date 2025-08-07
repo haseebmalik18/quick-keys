@@ -9,6 +9,9 @@ const pageInfo = {
   domain: window.location.hostname,
 };
 
+/**
+ * Initializes content script functionality
+ */
 function initialize() {
   connectPort();
   injectStyles();
@@ -18,6 +21,9 @@ function initialize() {
   notifyContentScriptLoaded();
 }
 
+/**
+ * Establishes connection port with background script
+ */
 function connectPort() {
   if (port) return;
 
@@ -33,6 +39,9 @@ function connectPort() {
   }
 }
 
+/**
+ * Injects CSS styles for content script UI elements
+ */
 function injectStyles() {
   try {
     if (document.querySelector('link[href*="content.css"]')) return;
@@ -44,6 +53,9 @@ function injectStyles() {
   } catch (error) {}
 }
 
+/**
+ * Ensures Font Awesome is loaded for notification icons
+ */
 function ensureFontAwesome() {
   if (fontAwesomeInjected) return;
   if (document.querySelector('link[href*="font-awesome"]')) {
@@ -157,11 +169,22 @@ const notifications = {
   },
 };
 
+/**
+ * Truncates text to specified length with ellipsis
+ * @param {string} text - Text to truncate
+ * @param {number} maxLength - Maximum length
+ * @returns {string} Truncated text
+ */
 function truncateText(text, maxLength) {
   if (!text) return "";
   return text.length > maxLength ? `${text.substring(0, maxLength)}...` : text;
 }
 
+/**
+ * Displays visual notification for executed actions
+ * @param {string} action - Action type
+ * @param {Object} details - Action details
+ */
 function showActionNotification(action, details = {}) {
   try {
     if (!notifications[action]) return;
@@ -199,6 +222,9 @@ function showActionNotification(action, details = {}) {
   } catch (error) {}
 }
 
+/**
+ * Sends current page information to background script
+ */
 function sendPageInfo() {
   try {
     if (chrome.runtime?.id) {
@@ -210,6 +236,10 @@ function sendPageInfo() {
   } catch (error) {}
 }
 
+/**
+ * Sends keyboard events to background script
+ * @param {KeyboardEvent} event - Keyboard event
+ */
 function sendKeyEvent(event) {
   try {
     if (
@@ -256,6 +286,9 @@ function sendKeyEvent(event) {
   } catch (error) {}
 }
 
+/**
+ * Sets up keyboard and message event listeners
+ */
 function setupEventListeners() {
   document.addEventListener("keydown", sendKeyEvent, true);
   document.addEventListener("keyup", sendKeyEvent, true);
@@ -302,6 +335,9 @@ function setupEventListeners() {
   });
 }
 
+/**
+ * Observes URL changes for single-page applications
+ */
 function observeUrlChanges() {
   try {
     const originalPushState = history.pushState;
@@ -341,6 +377,9 @@ function observeUrlChanges() {
   }
 }
 
+/**
+ * Notifies background script that content script has loaded
+ */
 function notifyContentScriptLoaded() {
   try {
     if (chrome.runtime?.id) {
