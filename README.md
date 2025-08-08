@@ -1,7 +1,6 @@
 # Quickeys – Custom Browser Keyboard Shortcuts  
 **Used by 180+ active users** to supercharge browsing productivity  
 
-[![Available on Chrome Web Store](https://img.shields.io/chrome-web-store/v/your-extension-id?label=Chrome%20Web%20Store&logo=google-chrome&logoColor=white)](https://chrome.google.com/webstore/detail/your-extension-id)  
 
 Quickeys is a Chrome extension that lets you create personalized keyboard shortcuts for faster, smoother browsing.  
 With 50+ built-in actions across navigation, tab management, media control, accessibility, and more, you can automate repetitive browser tasks — no mouse required.  
